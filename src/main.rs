@@ -1,20 +1,45 @@
 mod scanner;
 mod tree;
 
-use std::{env, path::Path};
+use std::path::Path;
+
+use clap::Parser;
 
 use crate::scanner::scan_directory;
 
-fn main() {
-    let app_name = env!("CARGO_PKG_NAME");
-    let app_version = env!("CARGO_PKG_VERSION");
-    let app_author = env!("CARGO_PKG_AUTHORS");
-    println!("{} v{}", app_name, app_version);
-    println!("(c) {}", app_author);
+#[derive(Parser)]
+#[command(name = "howbig")]
+#[command(author, version, about = "Analyze directory sizes")]
+struct Cli {
+    /// Directory to analyze
+    #[arg(default_value = ".")]
+    path: String,
 
-    let args: Vec<String> = env::args().collect();
-    let path = args.get(1).map_or(".", |s| s.as_str());
-    let path = Path::new(path);
+    /// How many levels deep to show in tree output (all dirs still scanned)
+    #[arg(short, long, default_value_t = 3)]
+    depth: u32,
+
+    /// Show top N largest items per directory
+    #[arg(short = 'n', long, default_value_t = 5)]
+    top: usize,
+
+    /// Show only summary statistics (no tree)
+    #[arg(short, long)]
+    summary: bool,
+
+    /// Show all items per directory (no limit)
+    #[arg(short, long)]
+    all: bool,
+
+    /// Show full tree (no depth limit)
+    #[arg(short, long)]
+    full: bool,
+}
+
+fn main() {
+    let cli = Cli::parse();
+    let path = Path::new(&cli.path);
+
     println!("Scanning: {}", display_path(path));
 
     let mut stats = scanner::ScanStats::default();
@@ -27,9 +52,13 @@ fn main() {
             println!("Directories: {}", stats.dirs_scanned);
             println!("Errors: {}", stats.errors);
             println!("Total size: {}", format_size(root.size));
-            println!();
 
-            print_tree(&root, root.size, 0, 3);
+            if !cli.summary {
+                println!();
+                let max_depth = if cli.full { None } else { Some(cli.depth) };
+                let top_n = if cli.all { None } else { Some(cli.top) };
+                print_tree(&root, root.size, 0, max_depth, top_n);
+            }
         }
         Err(e) => {
             eprintln!("Failed to scan directory: {}", e);
@@ -64,12 +93,20 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
-fn print_tree(entry: &tree::DirEntry, total_size: u64, depth: usize, max_depth: usize) {
-    if depth > max_depth {
+fn print_tree(
+    entry: &tree::DirEntry,
+    total_size: u64,
+    depth: u32,
+    max_depth: Option<u32>,
+    top_n: Option<usize>,
+) {
+    if let Some(max) = max_depth
+        && depth > max
+    {
         return;
     }
 
-    let indent = "  ".repeat(depth);
+    let indent = "  ".repeat(depth as usize);
     let size_str = format_size(entry.size);
     let percentage = entry.percentage_of(total_size);
 
@@ -82,7 +119,12 @@ fn print_tree(entry: &tree::DirEntry, total_size: u64, depth: usize, max_depth: 
         if entry.is_dir { "/" } else { "" }
     );
 
-    for child in entry.children.iter().take(5) {
-        print_tree(child, total_size, depth + 1, max_depth);
+    let children: Box<dyn Iterator<Item = &tree::DirEntry>> = match top_n {
+        Some(n) => Box::new(entry.children.iter().take(n)),
+        None => Box::new(entry.children.iter()),
+    };
+
+    for child in children {
+        print_tree(child, total_size, depth + 1, max_depth, top_n);
     }
 }

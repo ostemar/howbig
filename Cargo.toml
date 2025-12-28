@@ -7,3 +7,4 @@ authors = ["Martin Östemar <martin.ostemar@gmail.com>"]
 repository = "https://github.com/ostemar/howbig"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
