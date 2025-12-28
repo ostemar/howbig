@@ -1,0 +1,9 @@
+[package]
+name = "howbig"
+version = "0.1.0"
+edition = "2024"
+description = "A simple CLI tool to check the size of files and directories."
+authors = ["Martin Östemar <martin.ostemar@gmail.com>"]
+repository = "https://github.com/ostemar/howbig"
+
+[dependencies]
