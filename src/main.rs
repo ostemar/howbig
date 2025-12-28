@@ -34,6 +34,36 @@ struct Cli {
     /// Show full tree (no depth limit)
     #[arg(short, long)]
     full: bool,
+
+    /// Hide items smaller than this size (e.g., 1MB, 500KB)
+    #[arg(long, value_parser = parse_size)]
+    min_size: Option<u64>,
+}
+
+fn parse_size(s: &str) -> Result<u64, String> {
+    let s = s.trim().to_uppercase();
+
+    let (num_str, multiplier) = if let Some(n) = s.strip_suffix("TB") {
+        (n, 1024u64 * 1024 * 1024 * 1024)
+    } else if let Some(n) = s.strip_suffix("GB") {
+        (n, 1024u64 * 1024 * 1024)
+    } else if let Some(n) = s.strip_suffix("MB") {
+        (n, 1024u64 * 1024)
+    } else if let Some(n) = s.strip_suffix("KB") {
+        (n, 1024u64)
+    } else if let Some(n) = s.strip_suffix("B") {
+        (n, 1u64)
+    } else {
+        // Assume bytes if no suffix
+        (s.as_str(), 1u64)
+    };
+
+    let num: f64 = num_str
+        .trim()
+        .parse()
+        .map_err(|_| format!("Invalid size: {}", s))?;
+
+    Ok((num * multiplier as f64) as u64)
 }
 
 fn main() {
@@ -57,7 +87,7 @@ fn main() {
                 println!();
                 let max_depth = if cli.full { None } else { Some(cli.depth) };
                 let top_n = if cli.all { None } else { Some(cli.top) };
-                print_tree(&root, root.size, 0, max_depth, top_n);
+                print_tree(&root, root.size, 0, max_depth, top_n, cli.min_size);
             }
         }
         Err(e) => {
@@ -99,9 +129,16 @@ fn print_tree(
     depth: u32,
     max_depth: Option<u32>,
     top_n: Option<usize>,
+    min_size: Option<u64>,
 ) {
     if let Some(max) = max_depth
         && depth > max
+    {
+        return;
+    }
+
+    if let Some(min) = min_size
+        && entry.size < min
     {
         return;
     }
@@ -125,6 +162,6 @@ fn print_tree(
     };
 
     for child in children {
-        print_tree(child, total_size, depth + 1, max_depth, top_n);
+        print_tree(child, total_size, depth + 1, max_depth, top_n, min_size);
     }
 }
