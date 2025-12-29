@@ -10,11 +10,6 @@ Interactive features:
 - filtering
 - searching
 
-## Parallel scanning
-
-Improve performance of scanning by doing it in parallel, perhaps using `rayon`
-or similar.
-
 ## Caching results
 
 For faster subsequent scans, cache previous results and only rescan changed files.
