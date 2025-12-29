@@ -4,6 +4,7 @@ mod tree;
 use std::{path::Path, time::Instant};
 
 use clap::Parser;
+use owo_colors::{OwoColorize, Style};
 
 use crate::scanner::scan_directory;
 
@@ -70,17 +71,35 @@ fn parse_size(s: &str) -> Result<u64, String> {
     Ok((num * multiplier as f64) as u64)
 }
 
+const LABEL: Style = Style::new().truecolor(137, 180, 250);
+const PATH: Style = Style::new().truecolor(137, 220, 235);
+const SUCCESS: Style = Style::new().truecolor(166, 227, 161);
+const COUNT_FILES: Style = Style::new().truecolor(250, 179, 135);
+const COUNT_DIRS: Style = Style::new().truecolor(249, 226, 175);
+const IMPORTANT: Style = Style::new().truecolor(203, 166, 247).bold();
+const ERROR: Style = Style::new().truecolor(243, 139, 168);
+const VALUE: Style = Style::new().truecolor(180, 190, 254);
+
 fn main() {
     let cli = Cli::parse();
     let path = Path::new(&cli.path);
-    println!("Scanning: {}", display_path(path));
+    println!(
+        "{} {}",
+        "Scanning:".style(LABEL),
+        display_path(path).style(PATH)
+    );
 
     let num_threads = cli.threads.unwrap_or(num_cpus::get());
     rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build_global()
         .unwrap();
-    println!("Using {} threads for scanning", num_threads);
+    println!(
+        "{} {} {}",
+        "Using".style(LABEL),
+        num_threads.style(VALUE),
+        "threads for scanning".style(LABEL)
+    );
 
     let stats = scanner::ScanStats::default();
     let start = Instant::now();
@@ -92,14 +111,39 @@ fn main() {
                 let max_depth = if cli.full { None } else { Some(cli.depth) };
                 let top_n = if cli.all { None } else { Some(cli.top) };
                 print_tree(&root, root.size, 0, max_depth, top_n, cli.min_size);
-                println!();
             }
 
-            println!("Scan completed in : {:.2?}", scan_time);
-            println!("Files             : {}", stats.files_scanned());
-            println!("Directories       : {}", stats.dirs_scanned());
-            println!("Errors            : {}", stats.errors());
-            println!("Total size        : {}", format_size(root.size));
+            println!();
+            println!(
+                "{:>18}: {}",
+                "Scan time".style(SUCCESS),
+                format!("{:.2?}", scan_time).style(VALUE)
+            );
+            println!(
+                "{:>18}: {}",
+                "Files".style(LABEL),
+                stats.files_scanned().style(COUNT_FILES)
+            );
+            println!(
+                "{:>18}: {}",
+                "Directories".style(LABEL),
+                stats.dirs_scanned().style(COUNT_DIRS)
+            );
+            let num_errors = stats.errors();
+            println!(
+                "{:>18}: {}",
+                "Errors".style(LABEL),
+                if num_errors > 0 {
+                    num_errors.style(ERROR)
+                } else {
+                    num_errors.style(SUCCESS)
+                }
+            );
+            println!(
+                "{:>18}: {}",
+                "Total size".style(LABEL),
+                format_size(root.size).style(IMPORTANT)
+            );
         }
         Err(e) => {
             eprintln!("Failed to scan directory: {}", e);

@@ -10,3 +10,4 @@ repository = "https://github.com/ostemar/howbig"
 clap = { version = "4", features = ["derive"] }
 rayon = "1.11"
 num_cpus = "1.17"
+owo-colors = "4"
