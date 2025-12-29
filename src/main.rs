@@ -72,9 +72,9 @@ fn main() {
 
     println!("Scanning: {}", display_path(path));
 
-    let mut stats = scanner::ScanStats::default();
+    let stats = scanner::ScanStats::default();
     let start = Instant::now();
-    match scan_directory(path, &mut stats) {
+    match scan_directory(path, &stats) {
         Ok(mut root) => {
             root.sort_children();
             let scan_time = start.elapsed();
@@ -87,9 +87,9 @@ fn main() {
             }
 
             println!("Scan completed in : {:?}", scan_time);
-            println!("Files             : {}", stats.files_scanned);
-            println!("Directories       : {}", stats.dirs_scanned);
-            println!("Errors            : {}", stats.errors);
+            println!("Files             : {}", stats.files_scanned());
+            println!("Directories       : {}", stats.dirs_scanned());
+            println!("Errors            : {}", stats.errors());
             println!("Total size        : {}", format_size(root.size));
         }
         Err(e) => {

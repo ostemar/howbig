@@ -1,59 +1,86 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs, io,
+    path::Path,
+    sync::atomic::{AtomicU64, Ordering},
+};
+
+use rayon::prelude::*;
 
 use crate::tree::DirEntry;
 
 #[derive(Default)]
 pub struct ScanStats {
-    pub files_scanned: u64,
-    pub dirs_scanned: u64,
-    pub errors: u64,
+    pub files_scanned: AtomicU64,
+    pub dirs_scanned: AtomicU64,
+    pub errors: AtomicU64,
 }
 
-pub fn scan_directory(path: &Path, stats: &mut ScanStats) -> io::Result<DirEntry> {
+impl ScanStats {
+    pub fn files_scanned(&self) -> u64 {
+        self.files_scanned.load(Ordering::Relaxed)
+    }
+
+    pub fn dirs_scanned(&self) -> u64 {
+        self.dirs_scanned.load(Ordering::Relaxed)
+    }
+
+    pub fn errors(&self) -> u64 {
+        self.errors.load(Ordering::Relaxed)
+    }
+}
+
+pub fn scan_directory(path: &Path, stats: &ScanStats) -> io::Result<DirEntry> {
     let metadata = fs::metadata(path)?;
     let mut entry = DirEntry::new(path.to_path_buf(), metadata.is_dir());
 
     if !metadata.is_dir() {
         entry.size = metadata.len();
         entry.file_count = 1;
-        stats.files_scanned += 1;
+        stats.files_scanned.fetch_add(1, Ordering::Relaxed);
         return Ok(entry);
     }
 
     // It's a directory, let's scan its contents recursively
-    stats.dirs_scanned += 1;
+    stats.dirs_scanned.fetch_add(1, Ordering::Relaxed);
 
     let read_dir = match fs::read_dir(path) {
         Ok(rd) => rd,
         Err(e) => {
-            stats.errors += 1;
+            stats.errors.fetch_add(1, Ordering::Relaxed);
             eprintln!("Error reading directory {:?}: {}", path, e);
             return Ok(entry);
         }
     };
 
-    for dir_entry in read_dir {
-        let dir_entry = match dir_entry {
-            Ok(de) => de,
-            Err(e) => {
-                stats.errors += 1;
-                eprintln!("Error accessing directory entry in {:?}: {}", path, e);
-                continue;
-            }
-        };
+    let dir_entries: Vec<_> = read_dir.collect();
+    let children: Vec<DirEntry> = dir_entries
+        .into_par_iter()
+        .filter_map(|dir_entry| {
+            let dir_entry = match dir_entry {
+                Ok(de) => de,
+                Err(e) => {
+                    stats.errors.fetch_add(1, Ordering::Relaxed);
+                    eprintln!("Error accessing directory entry in {:?}: {}", path, e);
+                    return None;
+                }
+            };
 
-        let child_path = dir_entry.path();
-        match scan_directory(&child_path, stats) {
-            Ok(child) => {
-                entry.size += child.size;
-                entry.file_count += child.file_count;
-                entry.children.push(child);
+            let child_path = dir_entry.path();
+            match scan_directory(&child_path, stats) {
+                Ok(child) => Some(child),
+                Err(e) => {
+                    stats.errors.fetch_add(1, Ordering::Relaxed);
+                    eprintln!("Error scanning {:?}: {}", child_path, e);
+                    None
+                }
             }
-            Err(e) => {
-                stats.errors += 1;
-                eprintln!("Error scanning {:?}: {}", child_path, e);
-            }
-        }
+        })
+        .collect();
+
+    for child in children {
+        entry.size += child.size;
+        entry.file_count += child.file_count;
+        entry.children.push(child);
     }
 
     Ok(entry)
