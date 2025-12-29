@@ -11,6 +11,11 @@ Make sure they work on Windows as well, since they have different kinds of links
 What should I do about directories or files that cannot be accessed due
 to permission errors?
 
-## Command line options
+## Display
 
-Add command line options for the scan and output behavior.
+Show a line with a summary of the other children that were not printed, if any.
+Could be like "25 unlisted".
+
+Show number of total files under directories.
+
+Use color output?

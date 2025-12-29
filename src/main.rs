@@ -1,7 +1,7 @@
 mod scanner;
 mod tree;
 
-use std::path::Path;
+use std::{path::Path, time::Instant};
 
 use clap::Parser;
 
@@ -73,22 +73,24 @@ fn main() {
     println!("Scanning: {}", display_path(path));
 
     let mut stats = scanner::ScanStats::default();
+    let start = Instant::now();
     match scan_directory(path, &mut stats) {
         Ok(mut root) => {
             root.sort_children();
-
-            println!("Scan complete");
-            println!("Files: {}", stats.files_scanned);
-            println!("Directories: {}", stats.dirs_scanned);
-            println!("Errors: {}", stats.errors);
-            println!("Total size: {}", format_size(root.size));
+            let scan_time = start.elapsed();
 
             if !cli.summary {
-                println!();
                 let max_depth = if cli.full { None } else { Some(cli.depth) };
                 let top_n = if cli.all { None } else { Some(cli.top) };
                 print_tree(&root, root.size, 0, max_depth, top_n, cli.min_size);
+                println!();
             }
+
+            println!("Scan completed in : {:?}", scan_time);
+            println!("Files             : {}", stats.files_scanned);
+            println!("Directories       : {}", stats.dirs_scanned);
+            println!("Errors            : {}", stats.errors);
+            println!("Total size        : {}", format_size(root.size));
         }
         Err(e) => {
             eprintln!("Failed to scan directory: {}", e);
