@@ -38,6 +38,10 @@ struct Cli {
     /// Hide items smaller than this size (e.g., 1MB, 500KB)
     #[arg(long, value_parser = parse_size)]
     min_size: Option<u64>,
+
+    /// Number of threads to use for scanning [default: number of CPU cores]
+    #[arg(short, long)]
+    threads: Option<usize>,
 }
 
 fn parse_size(s: &str) -> Result<u64, String> {
@@ -69,14 +73,19 @@ fn parse_size(s: &str) -> Result<u64, String> {
 fn main() {
     let cli = Cli::parse();
     let path = Path::new(&cli.path);
-
     println!("Scanning: {}", display_path(path));
 
-    let mut stats = scanner::ScanStats::default();
+    let num_threads = cli.threads.unwrap_or(num_cpus::get());
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build_global()
+        .unwrap();
+    println!("Using {} threads for scanning", num_threads);
+
+    let stats = scanner::ScanStats::default();
     let start = Instant::now();
-    match scan_directory(path, &mut stats) {
-        Ok(mut root) => {
-            root.sort_children();
+    match scan_directory(path, &stats) {
+        Ok(root) => {
             let scan_time = start.elapsed();
 
             if !cli.summary {
@@ -86,10 +95,10 @@ fn main() {
                 println!();
             }
 
-            println!("Scan completed in : {:?}", scan_time);
-            println!("Files             : {}", stats.files_scanned);
-            println!("Directories       : {}", stats.dirs_scanned);
-            println!("Errors            : {}", stats.errors);
+            println!("Scan completed in : {:.2?}", scan_time);
+            println!("Files             : {}", stats.files_scanned());
+            println!("Directories       : {}", stats.dirs_scanned());
+            println!("Errors            : {}", stats.errors());
             println!("Total size        : {}", format_size(root.size));
         }
         Err(e) => {

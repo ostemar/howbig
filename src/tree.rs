@@ -36,11 +36,4 @@ impl DirEntry {
             (self.size as f64 / total as f64) * 100.0
         }
     }
-
-    pub fn sort_children(&mut self) {
-        self.children.sort_by(|a, b| b.size.cmp(&a.size));
-        for child in &mut self.children {
-            child.sort_children();
-        }
-    }
 }
