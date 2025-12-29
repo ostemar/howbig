@@ -38,6 +38,10 @@ struct Cli {
     /// Hide items smaller than this size (e.g., 1MB, 500KB)
     #[arg(long, value_parser = parse_size)]
     min_size: Option<u64>,
+
+    /// Number of threads to use for scanning [default: 4]
+    #[arg(short, long)]
+    threads: Option<usize>,
 }
 
 fn parse_size(s: &str) -> Result<u64, String> {
@@ -69,8 +73,13 @@ fn parse_size(s: &str) -> Result<u64, String> {
 fn main() {
     let cli = Cli::parse();
     let path = Path::new(&cli.path);
-
     println!("Scanning: {}", display_path(path));
+
+    let num_threads = cli.threads.unwrap_or(4);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build_global()
+        .unwrap();
 
     let stats = scanner::ScanStats::default();
     let start = Instant::now();
