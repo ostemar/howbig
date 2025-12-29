@@ -9,3 +9,4 @@ repository = "https://github.com/ostemar/howbig"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 rayon = "1.11"
+num_cpus = "1.17"

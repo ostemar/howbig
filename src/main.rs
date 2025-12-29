@@ -39,7 +39,7 @@ struct Cli {
     #[arg(long, value_parser = parse_size)]
     min_size: Option<u64>,
 
-    /// Number of threads to use for scanning [default: 4]
+    /// Number of threads to use for scanning [default: number of CPU cores]
     #[arg(short, long)]
     threads: Option<usize>,
 }
@@ -75,11 +75,12 @@ fn main() {
     let path = Path::new(&cli.path);
     println!("Scanning: {}", display_path(path));
 
-    let num_threads = cli.threads.unwrap_or(4);
+    let num_threads = cli.threads.unwrap_or(num_cpus::get());
     rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build_global()
         .unwrap();
+    println!("Using {} threads for scanning", num_threads);
 
     let stats = scanner::ScanStats::default();
     let start = Instant::now();
@@ -94,7 +95,7 @@ fn main() {
                 println!();
             }
 
-            println!("Scan completed in : {:?}", scan_time);
+            println!("Scan completed in : {:.2?}", scan_time);
             println!("Files             : {}", stats.files_scanned());
             println!("Directories       : {}", stats.dirs_scanned());
             println!("Errors            : {}", stats.errors());
