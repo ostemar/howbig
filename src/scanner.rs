@@ -53,7 +53,7 @@ pub fn scan_directory(path: &Path, stats: &ScanStats) -> io::Result<DirEntry> {
     };
 
     let dir_entries: Vec<_> = read_dir.collect();
-    let children: Vec<DirEntry> = dir_entries
+    let mut children: Vec<DirEntry> = dir_entries
         .into_par_iter()
         .filter_map(|dir_entry| {
             let dir_entry = match dir_entry {
@@ -76,6 +76,9 @@ pub fn scan_directory(path: &Path, stats: &ScanStats) -> io::Result<DirEntry> {
             }
         })
         .collect();
+
+    // Sort children by size in descending order
+    children.sort_unstable_by(|a, b| b.size.cmp(&a.size));
 
     for child in children {
         entry.size += child.size;

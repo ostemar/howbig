@@ -75,8 +75,7 @@ fn main() {
     let stats = scanner::ScanStats::default();
     let start = Instant::now();
     match scan_directory(path, &stats) {
-        Ok(mut root) => {
-            root.sort_children();
+        Ok(root) => {
             let scan_time = start.elapsed();
 
             if !cli.summary {
