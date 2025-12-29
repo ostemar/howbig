@@ -43,6 +43,10 @@ struct Cli {
     /// Number of threads to use for scanning [default: number of CPU cores]
     #[arg(short, long)]
     threads: Option<usize>,
+
+    /// Maximum children to retain per directory (saves memory on large scans)
+    #[arg(long, default_value_t = 100)]
+    max_children: usize,
 }
 
 fn parse_size(s: &str) -> Result<u64, String> {
@@ -103,7 +107,7 @@ fn main() {
 
     let stats = scanner::ScanStats::default();
     let start = Instant::now();
-    match scan_directory(path, &stats) {
+    match scan_directory(path, &stats, cli.max_children) {
         Ok(root) => {
             let scan_time = start.elapsed();
 
@@ -218,5 +222,22 @@ fn print_tree(
 
     for child in children {
         print_tree(child, total_size, depth + 1, max_depth, top_n, min_size);
+    }
+
+    // Show aggregated info for pruned children
+    if entry.other_count > 0 {
+        let indent = "  ".repeat((depth + 1) as usize);
+        let other_percentage = if total_size > 0 {
+            (entry.other_size as f64 / total_size as f64) * 100.0
+        } else {
+            0.0
+        };
+        println!(
+            "{:>6.2}% {:>10} {} ... and {} more items",
+            other_percentage,
+            format_size(entry.other_size),
+            indent,
+            entry.other_count
+        );
     }
 }

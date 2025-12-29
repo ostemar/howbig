@@ -29,9 +29,9 @@ impl ScanStats {
     }
 }
 
-pub fn scan_directory(path: &Path, stats: &ScanStats) -> io::Result<DirEntry> {
+pub fn scan_directory(path: &Path, stats: &ScanStats, max_children: usize) -> io::Result<DirEntry> {
     let metadata = fs::metadata(path)?;
-    let mut entry = DirEntry::new(path.to_path_buf(), metadata.is_dir());
+    let mut entry = DirEntry::new(path, metadata.is_dir());
 
     if !metadata.is_dir() {
         entry.size = metadata.len();
@@ -66,7 +66,7 @@ pub fn scan_directory(path: &Path, stats: &ScanStats) -> io::Result<DirEntry> {
             };
 
             let child_path = dir_entry.path();
-            match scan_directory(&child_path, stats) {
+            match scan_directory(&child_path, stats, max_children) {
                 Ok(child) => Some(child),
                 Err(e) => {
                     stats.errors.fetch_add(1, Ordering::Relaxed);
@@ -80,11 +80,20 @@ pub fn scan_directory(path: &Path, stats: &ScanStats) -> io::Result<DirEntry> {
     // Sort children by size in descending order
     children.sort_unstable_by(|a, b| b.size.cmp(&a.size));
 
-    for child in children {
+    // Calculate total size/count from all children before pruning
+    for child in &children {
         entry.size += child.size;
         entry.file_count += child.file_count;
-        entry.children.push(child);
     }
+
+    // Prune children beyond max_children limit to save memory
+    if children.len() > max_children {
+        let pruned = children.split_off(max_children);
+        entry.other_count = pruned.len() as u64;
+        entry.other_size = pruned.iter().map(|c| c.size).sum();
+    }
+
+    entry.children = children;
 
     Ok(entry)
 }
